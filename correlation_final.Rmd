@@ -1,0 +1,919 @@
+---
+title: "GDAN -  DNA methylation legacy vs harmonized GDC databases"
+author: "Tiago Chedraoui Silva, Wanding Zhou, Ben P. Berman"
+output:
+  html_document:
+    df_print: paged
+    highlight: tango
+    number_sections: yes
+    css: style.css
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: yes
+editor_options:
+  chunk_output_type: inline
+---
+
+# Correlation analysis
+
+This report contains a correlation analysis between DNA methylation levels of probes and their annotated gene nearest genes. 
+The main purpose is to compare the differences in the DNA methylation metadata in GDC legacy database vs GDC harmonized data.
+
+A pair of probe and genes are consider:
+
+- Insignificant if FDR > 0.05 
+- Strongly negatively correlated (SNC) when the rho value was less than -0.5 (FDR < 0.05);
+- Weakly negatively correlated (WNC) when the rho value was between -0.5 and -0.25 (FDR < 0.05);
+- No negative correlation (NNC) when the rho value was greater than -0.25 (FDR < 0.05);
+
+As the purpose is to compare DNA methylation annotation, the correlation of both analyses (hg19 and hg38) used the same gene expression data (GDC harmonized - FPKM-UQ).
+
+<div class="panel panel-info">
+<div class="panel-heading">Annotations</div>
+<div class="panel-body">
+- hg19: Illumina manifest
+  * Source: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL13534
+
+- hg38: Zhou W, Laird PW and Shen H, Comprehensive characterization, annotation and innovative use of Infinium DNA Methylation BeadChip probes, Nucleic Acids Research 2017 
+  * Source: http://zwdzwd.github.io/InfiniumAnnotation (Also available in harmonized GDC DNA methylation data)
+</div>
+</div>
+
+# Evaluating associations by annotation
+```{r,include=FALSE}
+library(S4Vectors)
+library(TCGAbiolinks)
+library(ELMER)
+library(dplyr)
+library(knitr)
+library(ggpubr)
+library(plotly)
+library(htmltools)
+library(tidyr)
+library(reshape2)
+library(plyr)
+knitr::opts_chunk$set(warning=FALSE)
+```
+
+```{r,include=FALSE}
+root <- "/Volumes/TCS/GDAN/"
+
+load(file.path(root,"associated.genes_id_hg19.rda"))
+load(file.path(root,"associated.genes_id.rda"))
+colnames(associated.genes_id.hg19)[2] <- "probe"
+```
+
+
+## Negative distances
+
+### Unique pair probe genes (with max distance TSS 1500 bp) 
+
+This sections compared hg38 associations and h19 associations.
+The hg38 annotation was retrieved (same used in GDC) from http://zwdzwd.github.io/InfiniumAnnotation
+and only genes & probes with distance between 0 and -1500 (negative distance) are kept.
+The hg19 annotation was retrieved the ilumina manifest. We kept only TSS200 and TSS1500 associations.
+
+```{r, cache=F}
+# The code to create the object (associated.genes_id and associated.genes_id.hg19) is below
+associated.genes_id <- associated.genes_id[as.numeric(as.character(associated.genes_id$distance)) < 0,]
+associated.genes_id
+associated.genes_id$distance <- NULL # ignore different distances
+associated.genes_id <- unique(associated.genes_id)
+associated.genes_id
+
+# hg19: Illumina manifest. Max distance TSS 1500
+unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id","group_type")])
+```
+
+```{r, warning=FALSE, message=F, cache=F}
+hg19.pairs <- unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id")])
+colnames(hg19.pairs)[1] <- "probe"
+hg38.pairs <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+shared.pairs <- inner_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg19.pairs <- anti_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg38.pairs <- anti_join(as_tibble(hg38.pairs),as_tibble(hg19.pairs))
+unique.hg19.genes <- setdiff(unique(hg19.pairs$ensembl_gene_id),unique(hg38.pairs$ensembl_gene_id))
+unique.hg38.genes <- setdiff(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+shared.genes <- intersect(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+```
+
+### Comparing number of unique associate probes between hg38 and hg19
+```{r, warning=F,message=F, cache=F}
+library(VennDiagram)
+draw.pairwise.venn(length(unique(associated.genes_id$probe)), 
+                   length(unique(associated.genes_id.hg19$probe)),
+                   length(intersect(unique(associated.genes_id$probe),
+                                    unique(associated.genes_id.hg19$probe))),
+                   category = c("Probes hg38", "Probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+### Comparing number of unique associate genes between hg38 and hg19
+```{r, cache=F}
+draw.pairwise.venn(length(unique(associated.genes_id$ensembl_gene_id)), 
+                   length(unique(associated.genes_id.hg19$ensembl_gene_id)),
+                   length(intersect(unique(associated.genes_id$ensembl_gene_id),
+                                    unique(associated.genes_id.hg19$ensembl_gene_id))),
+                   category = c("Genes associated to probes hg38", "Genes associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+unique.hg19.genes <- setdiff(associated.genes_id.hg19$ensembl_gene_id,associated.genes_id$ensembl_gene_id)
+unique.hg38.genes <- setdiff(associated.genes_id$ensembl_gene_id,associated.genes_id.hg19$ensembl_gene_id)
+
+```
+
+### Comparing number of unique pairs (gene-probe) between hg38 and hg19
+```{r, cache=F}
+g1 <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+g2 <- unique(associated.genes_id.hg19[,c("probe","ensembl_gene_id")])
+draw.pairwise.venn(nrow(g1), 
+                   nrow(g2), 
+                   sum(paste0(g1$probe,"_",g1$ensembl_gene_id) %in% paste0(g2$probe,"_",g2$ensembl_gene_id)),
+                   category = c("Pairs associated to probes hg38", "Pairs associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+### Correlation status between probe and associated gene
+
+#### Considering all pairs
+
+```{r plot2,include=T,message=FALSE,  eval=F,warning=F,cache=F}
+library(plotly)
+
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and summarize
+correlation.status <- NULL
+files <- dir(pattern = "correlation_final.rda",recursive = T,full.names = T)
+for(f in files){
+  load(f)
+  # to keep only the same distance signal
+  hg38_correlation <- left_join(as_tibble(unique(associated.genes_id[,c("probe", "ensembl_gene_id")])),
+                                as_tibble(hg38_correlation))
+  
+  tab <- plyr::count(hg19_correlation$status)
+  hg19.col <- gsub("\\.\\/","",gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Status",hg19.col)
+  if(is.null(correlation.status)) {
+    correlation.status <- tab
+  } else {
+    correlation.status <- full_join(correlation.status, tab)
+  }
+  tab <- plyr::count(hg38_correlation$status)
+  hg38.col <- gsub("\\.\\/","",gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Status",hg38.col)
+  correlation.status <- full_join(correlation.status, tab)
+}
+correlation.status[is.na(correlation.status)] <- 0
+```
+
+```{r,include=T,message=FALSE, eval=F, warning=F,cache=F}
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and select only Strongly negatively correlated (SNC)
+SNC.type <- NULL
+phantom <- NULL
+
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
+for(f in files){
+  load(f)
+  # to keep only the same distance signal
+  hg38_correlation <- left_join(as_tibble(unique(associated.genes_id[,c("probe", "ensembl_gene_id")])),
+                                as_tibble(hg38_correlation))
+  
+  hg19 <- hg19_correlation[hg19_correlation$status == "Strongly negatively correlated (SNC)",]
+  paired.genes <- unique(hg19$ensembl_gene_id)
+  tab <- plyr::count(hg38_correlation[match(paired.genes, hg38_correlation$ensembl_gene_id),]$group_type)
+  phantom.hg19 <- c(sum(table(hg19[!duplicated(hg19$probe),]$Phantom)),sum(is.na(hg19[!duplicated(hg19$probe),]$Phantom)))
+  hg19.col <- gsub("\\.\\/","", gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Gene_group_type", hg19.col)
+  if(is.null(SNC.type)) {
+    SNC.type <- tab
+  } else {
+    SNC.type <- full_join(SNC.type, tab)
+  }
+  aux <- hg38_correlation[hg38_correlation$status == "Strongly negatively correlated (SNC)",]
+  z <- hg19_correlation[hg19_correlation$probe %in% aux$probe,]
+  z <- z[!duplicated(z$probe),]
+  phantom.hg38 <- c(sum(table(z$Phantom)),
+                    sum(is.na(z$Phantom)))
+  phantom <- rbind(phantom,phantom.hg19,phantom.hg38)
+  tab <- plyr::count(aux[!duplicated(aux$ensembl_gene_id),]$group_type)
+  hg38.col <- gsub("\\.\\/", "", gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Gene_group_type", hg38.col)
+  SNC.type <- full_join(SNC.type, tab)
+}
+
+colnames(phantom) <- c("Phantom","No phantom")
+rownames(phantom) <- sapply(files, function(x) return(c(paste0("hg38",x),paste0("hg19",x))))
+
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and select only Weakly negatively correlated (WNC)
+WNC.type <- NULL
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
+for(f in files){
+  load(f)
+  # to keep only the same distance signal
+  hg38_correlation <- left_join(as_tibble(unique(associated.genes_id[,c("probe", "ensembl_gene_id")])),
+                                as_tibble(hg38_correlation))
+  
+  paired.genes <- unique(hg19_correlation[hg19_correlation$status == "Weakly negatively correlated (WNC)",]$ensembl_gene_id)
+  tab <- plyr::count(hg38_correlation[match(paired.genes, hg38_correlation$ensembl_gene_id),]$group_type)
+  hg19.col <- gsub("\\.\\/","", gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Gene_group_type", hg19.col)
+  if(is.null(WNC.type)) {
+    WNC.type <- tab
+  } else {
+    WNC.type <- full_join(WNC.type, tab)
+  }
+  aux <- hg38_correlation[hg38_correlation$status == "Weakly negatively correlated (WNC)",]
+  tab <- plyr::count(aux[!duplicated(aux$ensembl_gene_id),]$group_type)
+  hg38.col <- gsub("\\.\\/", "", gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Gene_group_type", hg38.col)
+  WNC.type <- full_join(WNC.type, tab)
+}
+colnames(correlation.status)[-1] <- paste0(colnames(correlation.status)[-1],"_negative")
+colnames(SNC.type)[-1] <- paste0(colnames(SNC.type)[-1],"_negative")
+colnames(WNC.type)[-1] <- paste0(colnames(WNC.type)[-1],"_negative")
+WNC.type.negative <- WNC.type
+SNC.type.negative <- SNC.type
+correlation.status.negative <- correlation.status
+save(correlation.status.negative,SNC.type.negative,WNC.type.negative,file = "negative_tables.rda")
+```
+
+#####  Summary
+```{r}
+load("negative_tables.rda")
+DT::datatable(correlation.status.negative,
+              options = list(scrollX = TRUE),
+              filter = 'top')
+DT::datatable(SNC.type.negative,
+              options = list(scrollX = TRUE),
+              filter = 'top')
+```
+
+## Positive distances
+
+This sections compared hg38 associations and h19 associations.
+The hg38 annotation was retrieved (same used in GDC) from http://zwdzwd.github.io/InfiniumAnnotation
+and only genes & probes with distance between 0 and +1500 (positive distance) are kept.
+The hg19 annotation was retrieved the ilumina manifest. We kept only TSS200 and TSS1500 associations.
+
+
+```{r,include=FALSE,cache=F}
+load(file.path(root,"associated.genes_id_hg19.rda"))
+load(file.path(root,"associated.genes_id.rda"))
+colnames(associated.genes_id.hg19)[2] <- "probe"
+associated.genes_id <- associated.genes_id[as.numeric(as.character(associated.genes_id$distance)) > 0,]
+```
+
+### Unique pair probe genes (with max distance TSS 1500 bp) 
+
+```{r,cache=F}
+# Source: http://zwdzwd.github.io/InfiniumAnnotation
+# Only keeping genes & probes with distance between 0 and 1500
+associated.genes_id
+associated.genes_id$distance <- NULL # ignore different distances
+associated.genes_id <- unique(associated.genes_id)
+associated.genes_id
+
+# hg19: Illumina manifest. Max distance TSS 1500
+unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id","group_type")])
+```
+
+```{r, warning=FALSE, message=F,cache=F}
+hg19.pairs <- unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id")])
+colnames(hg19.pairs)[1] <- "probe"
+hg38.pairs <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+shared.pairs <- inner_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg19.pairs <- anti_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg38.pairs <- anti_join(as_tibble(hg38.pairs),as_tibble(hg19.pairs))
+unique.hg19.genes <- setdiff(unique(hg19.pairs$ensembl_gene_id),unique(hg38.pairs$ensembl_gene_id))
+unique.hg38.genes <- setdiff(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+shared.genes <- intersect(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+```
+
+### Comparing number of unique associate probes between hg38 and hg19
+```{r, warning=F,message=F,cache=F}
+library(VennDiagram)
+draw.pairwise.venn(length(unique(associated.genes_id$probe)), 
+                   length(unique(associated.genes_id.hg19$probe)),
+                   length(intersect(unique(associated.genes_id$probe),
+                                    unique(associated.genes_id.hg19$probe))),
+                   category = c("Probes hg38", "Probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+### Comparing number of unique associate genes between hg38 and hg19
+```{r,cache=F}
+draw.pairwise.venn(length(unique(associated.genes_id$ensembl_gene_id)), 
+                   length(unique(associated.genes_id.hg19$ensembl_gene_id)),
+                   length(intersect(unique(associated.genes_id$ensembl_gene_id),
+                                    unique(associated.genes_id.hg19$ensembl_gene_id))),
+                   category = c("Genes associated to probes hg38", "Genes associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+unique.hg19.genes <- setdiff(associated.genes_id.hg19$ensembl_gene_id,associated.genes_id$ensembl_gene_id)
+unique.hg38.genes <- setdiff(associated.genes_id$ensembl_gene_id,associated.genes_id.hg19$ensembl_gene_id)
+
+```
+
+### Comparing number of unique pairs (gene-probe) between hg38 and hg19
+```{r,cache=F}
+g1 <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+g2 <- unique(associated.genes_id.hg19[,c("probe","ensembl_gene_id")])
+draw.pairwise.venn(nrow(g1), 
+                   nrow(g2), 
+                   sum(paste0(g1$probe,"_",g1$ensembl_gene_id) %in% paste0(g2$probe,"_",g2$ensembl_gene_id)),
+                   category = c("Pairs associated to probes hg38", "Pairs associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+
+## All distances (positive and negative)
+
+This sections compared hg38 associations and h19 associations.
+The hg38 annotation was retrieved (same used in GDC) from http://zwdzwd.github.io/InfiniumAnnotation
+and only genes & probes with distance between -1500 and +1500 are kept.
+The hg19 annotation was retrieved the ilumina manifest. We kept only TSS200 and TSS1500 associations.
+
+```{r,include=FALSE,cache=F}
+load(file.path(root,"associated.genes_id_hg19.rda"))
+load(file.path(root,"associated.genes_id.rda"))
+colnames(associated.genes_id.hg19)[2] <- "probe"
+```
+
+### Unique pair probe genes (with max distance TSS 1500 bp) 
+
+```{r,cache=F}
+# Source: http://zwdzwd.github.io/InfiniumAnnotation
+# Only keeping genes & probes with distance < 1500
+associated.genes_id
+
+
+associated.genes_id$distance <- NULL # ignore different distances
+associated.genes_id <- unique(associated.genes_id)
+associated.genes_id
+
+# hg19: Illumina manifest. Max distance TSS 1500
+unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id","group_type")])
+```
+
+```{r, warning=FALSE, message=F,cache=F}
+hg19.pairs <- unique(associated.genes_id.hg19[,c("probe", "ensembl_gene_id")])
+colnames(hg19.pairs)[1] <- "probe"
+hg38.pairs <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+shared.pairs <- inner_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg19.pairs <- anti_join(as_tibble(hg19.pairs),as_tibble(hg38.pairs))
+unique.hg38.pairs <- anti_join(as_tibble(hg38.pairs),as_tibble(hg19.pairs))
+unique.hg19.genes <- setdiff(unique(hg19.pairs$ensembl_gene_id),unique(hg38.pairs$ensembl_gene_id))
+unique.hg38.genes <- setdiff(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+shared.genes <- intersect(unique(hg38.pairs$ensembl_gene_id),unique(hg19.pairs$ensembl_gene_id))
+```
+
+### Comparing number of unique associate probes between hg38 and hg19
+```{r, warning=F,message=F,cache=F}
+library(VennDiagram)
+draw.pairwise.venn(length(unique(associated.genes_id$probe)), 
+                   length(unique(associated.genes_id.hg19$probe)),
+                   length(intersect(unique(associated.genes_id$probe),
+                                    unique(associated.genes_id.hg19$probe))),
+                   category = c("Probes hg38", "Probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+### Comparing number of unique associate genes between hg38 and hg19
+```{r,cache=F}
+draw.pairwise.venn(length(unique(associated.genes_id$ensembl_gene_id)), 
+                   length(unique(associated.genes_id.hg19$ensembl_gene_id)),
+                   length(intersect(unique(associated.genes_id$ensembl_gene_id),
+                                    unique(associated.genes_id.hg19$ensembl_gene_id))),
+                   category = c("Genes associated to probes hg38", "Genes associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+unique.hg19.genes <- setdiff(associated.genes_id.hg19$ensembl_gene_id,associated.genes_id$ensembl_gene_id)
+unique.hg38.genes <- setdiff(associated.genes_id$ensembl_gene_id,associated.genes_id.hg19$ensembl_gene_id)
+
+```
+
+### Comparing number of unique pairs (gene-probe) between hg38 and hg19
+```{r,cache=F}
+g1 <- unique(associated.genes_id[,c("probe","ensembl_gene_id")])
+g2 <- unique(associated.genes_id.hg19[,c("probe","ensembl_gene_id")])
+draw.pairwise.venn(nrow(g1), 
+                   nrow(g2), 
+                   sum(paste0(g1$probe,"_",g1$ensembl_gene_id) %in% paste0(g2$probe,"_",g2$ensembl_gene_id)),
+                   category = c("Pairs associated to probes hg38", "Pairs associated to probes hg19"), 
+                   lty = rep("blank", 2), 
+                   fill = c("light blue", "pink"), 
+                   alpha = rep(0.5, 2), 
+                   cat.pos = c(0, 0), 
+                   cat.dist = rep(0.025, 2))
+```
+
+### Correlation status between probe and associated gene
+
+#### Considering all pairs
+
+```{r,include=T,message=FALSE, eval=T}
+load(file.path(root,"associated.genes_id_hg19.rda"))
+load(file.path(root,"associated.genes_id.rda"))
+colnames(associated.genes_id.hg19)[2] <- "probe"
+
+
+associated.genes_id.negative <- associated.genes_id[as.numeric(as.character(associated.genes_id$distance)) < 0,]
+associated.genes_id.negative <- unique(associated.genes_id.negative[,c("group_type","ensembl_gene_id")])
+associated.genes_id <- unique(associated.genes_id[,c("group_type","ensembl_gene_id")])
+gene.hg19 <- unique(associated.genes_id.hg19$ensembl_gene_id)
+associated.genes_id.hg19 <- data.frame(ensembl_gene_id = gene.hg19, 
+                                       group_type = associated.genes_id$group_type[match(gene.hg19,
+                                                                                         associated.genes_id$ensembl_gene_id)]
+)
+tab.h19 <- plyr::count(associated.genes_id.hg19$group_type)
+colnames(tab.h19) <- c("Gene_group_type", "hg19_negative")
+
+tab.h38 <- plyr::count(associated.genes_id.negative$group_type)
+colnames(tab.h38) <- c("Gene_group_type", "hg38_negative")
+tab.h38.all <- plyr::count(associated.genes_id$group_type)
+colnames(tab.h38.all) <- c("Gene_group_type", "hg38_all")
+
+
+all.type <- NULL
+all.type <- full_join(tab.h38, tab.h38.all)
+all.type <- full_join(all.type, tab.h19)
+
+```
+
+
+```{r ,include=T,message=FALSE, eval=F}
+library(plotly)
+
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and summarize
+files <- dir(pattern = "correlation_final.rda",recursive = T,full.names = T)
+correlation.status <- NULL
+for(f in files){
+  load(f)
+  tab <- plyr::count(hg19_correlation$status)
+  hg19.col <- gsub("\\.\\/","",gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Status",hg19.col)
+  if(is.null(correlation.status)) {
+    correlation.status <- tab
+  } else {
+    correlation.status <- full_join(correlation.status, tab)
+  }
+  tab <- plyr::count(hg38_correlation$status)
+  hg38.col <- gsub("\\.\\/","",gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Status",hg38.col)
+  correlation.status <- full_join(correlation.status, tab)
+}
+```
+
+```{r,include=T,message=FALSE, eval=F}
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and select only Strongly negatively correlated (SNC)
+SNC.type <- NULL
+phantom <- NULL
+
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
+for(f in files){
+  message(f)
+  load(f)
+  if(!any(hg19_correlation$status == "Strongly negatively correlated (SNC)")) next
+  hg19 <- hg19_correlation[hg19_correlation$status == "Strongly negatively correlated (SNC)",]
+  paired.genes <- unique(hg19$ensembl_gene_id)
+  tab <- plyr::count(hg38_correlation[match(paired.genes, hg38_correlation$ensembl_gene_id),]$group_type)
+  phantom.hg19 <- c(sum(table(hg19[!duplicated(hg19$probe),]$Phantom)),sum(is.na(hg19[!duplicated(hg19$probe),]$Phantom)))
+  hg19.col <- gsub("\\.\\/","", gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Gene_group_type", hg19.col)
+  if(is.null(SNC.type)) {
+    SNC.type <- tab
+  } else {
+    SNC.type <- full_join(SNC.type, tab)
+  }
+  aux <- hg38_correlation[hg38_correlation$status == "Strongly negatively correlated (SNC)",]
+  tab <- plyr::count(aux[!duplicated(aux$ensembl_gene_id),]$group_type)
+  hg38.col <- gsub("\\.\\/", "", gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Gene_group_type", hg38.col)
+  SNC.type <- full_join(SNC.type, tab)
+}
+
+```
+
+```{r,include=T,message=FALSE, eval=F}
+# Each correlation file has pairs of gene probes (max distance 1500bp)
+# correlation values (spearman pvalue, rho and status)
+# we read it and select only Weakly negatively correlated (WNC)
+WNC.type <- NULL
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
+for(f in files){
+  load(f)
+  if(!any(hg19_correlation$status == "Weakly negatively correlated (WNC)")) next
+  paired.genes <- unique(hg19_correlation[hg19_correlation$status == "Weakly negatively correlated (WNC)",]$ensembl_gene_id)
+  tab <- plyr::count(hg38_correlation[match(paired.genes, hg38_correlation$ensembl_gene_id),]$group_type)
+  hg19.col <- gsub("\\.\\/","", gsub("_correlation_final.rda","_hg19",f))
+  colnames(tab) <- c("Gene_group_type", hg19.col)
+  if(is.null(WNC.type)) {
+    WNC.type <- tab
+  } else {
+    WNC.type <- full_join(WNC.type, tab)
+  }
+  aux <- hg38_correlation[hg38_correlation$status == "Weakly negatively correlated (WNC)",]
+  tab <- plyr::count(aux[!duplicated(aux$ensembl_gene_id),]$group_type)
+  hg38.col <- gsub("\\.\\/", "", gsub("_correlation_final.rda","_hg38",f))
+  colnames(tab) <- c("Gene_group_type", hg38.col)
+  WNC.type <- full_join(WNC.type, tab)
+}
+
+colnames(correlation.status)[-1]  <- paste0(colnames(correlation.status)[-1] ,"_all")
+colnames(SNC.type)[-1] <- paste0(colnames(SNC.type)[-1] ,"_all")
+colnames(WNC.type)[-1] <- paste0(colnames(WNC.type)[-1] ,"_all")
+WNC.type.all <- WNC.type
+SNC.type.all <- SNC.type
+correlation.status.all <- correlation.status
+
+WNC.type <- full_join(WNC.type.negative, WNC.type.all)
+SNC.type <- full_join(SNC.type.negative, SNC.type.all)
+correlation.status <- full_join(correlation.status.negative,correlation.status.all)
+save(WNC.type,SNC.type,correlation.status,file = "plot_new.rda")
+```
+
+```{r,include=T,message=FALSE}
+load("plot_new.rda")
+```
+
+#####  Summary
+```{r}
+DT::datatable(correlation.status,
+              options = list(scrollX = TRUE),
+              filter = 'top')
+DT::datatable(SNC.type,
+              options = list(scrollX = TRUE),
+              filter = 'top')
+```
+
+#  Plots
+
+This section will evaluate the transcript type for all associations and for each tumor type their status 
+and fthe most significant anti-correlated  associations (SNC and WNC) the transcript type for all associated genes.
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE,results="asis"}
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)[1:2]
+
+SNC.type.no_protein <- SNC.type[SNC.type$Gene_group_type != "protein_coding",]
+WNC.type.no_protein <- WNC.type[WNC.type$Gene_group_type != "protein_coding",]
+
+# 1) Get gene type for all associations
+cat("\n## All linked gene group types \n\n")
+cat("\n### All gene types \n\n")
+
+.pl <- plot_ly(all.type, 
+               x = as.formula(paste0("~",grep("group",colnames(all.type),value=T))), 
+               y = as.formula(paste0("~",grep(paste0("hg19_negative"),colnames(all.type),value=T))), 
+               type = 'bar', 
+               name = paste0(" hg19 (-1500bp)")) %>%
+  add_trace(y = as.formula(paste0("~",grep(paste0("hg38_negative"),colnames(all.type),value=T))), 
+            name = paste0(" hg38 (-1500bp)")) %>%
+  add_trace(y = as.formula(paste0("~",grep(paste0("hg38_all"),colnames(all.type),value=T))), 
+            name = paste0(" hg38 (+/-1500bp)")) %>%
+  layout(yaxis = list(title = 'Count'),
+         barmode = 'group',
+         margin = list(b = 250),
+         xaxis = list(title = 'Gene group type', tickangle = 90))
+cat(renderTags(.pl)$html)
+
+
+cat("\n### All gene types - no protein coding \n\n")
+all.type.no.protein <- all.type[all.type$Gene_group_type != "protein_coding",]
+.pl <- plot_ly(all.type.no.protein, 
+               x = as.formula(paste0("~",grep("group",colnames(all.type.no.protein),value=T))), 
+               y = as.formula(paste0("~",grep(paste0("hg19_negative"),colnames(all.type.no.protein),value=T))), 
+               type = 'bar', 
+               name = paste0(" hg19 (-1500bp)")) %>%
+  add_trace(y = as.formula(paste0("~",grep(paste0("hg38_negative"),colnames(all.type.no.protein),value=T))), 
+            name = paste0(" hg38 (-1500bp)")) %>%
+  add_trace(y = as.formula(paste0("~",grep(paste0("hg38_all"),colnames(all.type.no.protein),value=T))), 
+            name = paste0(" hg38 (+/-1500bp)")) %>%
+  layout(yaxis = list(title = 'Count'),
+         barmode = 'group',
+         margin = list(b = 250),
+         xaxis = list(title = 'Gene group type', tickangle = 90)) 
+cat(renderTags(.pl)$html)
+
+# For each tumor type plot status, SNC and WNC gene types
+files <- dir(pattern = "correlation_final.csv",recursive = T,full.names = T)
+tumors <- unique(basename(dirname(dirname(files))))
+for(i in tumors){
+  if(!any(grepl(paste0(i,"_hg38_negative"),colnames(correlation.status)))) next
+  cat("\n## ",i, " \n\n")
+  cat("\n### All pairs status \n\n")
+  .pl <- plot_ly(correlation.status, 
+                 x = as.formula(paste0("~",grep("Status",colnames(correlation.status),value=T))),
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(correlation.status),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i,"_hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(correlation.status),value=T))), 
+              name = paste0(i," hg38  (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(correlation.status),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'), 
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+  
+  if(!any(grepl(paste0(i,"_hg38_negative"),colnames(SNC.type)))) next
+  if(all(is.na(SNC.type[,grep(paste0(i,"_hg19_negative"),colnames(SNC.type))]))) next
+  
+  
+  # Bar plot with all probes (SNC,WNC,)
+  cat("\n### All probes - gene types \n\n")
+  
+  .pl <- plot_ly(SNC.type, 
+                 x = as.formula(paste0("~",grep("group",colnames(SNC.type),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(SNC.type),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(SNC.type),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(SNC.type),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+  cat("\n#### No protein_coding gene type \n\n")
+  
+  .pl <- plot_ly(SNC.type.no_protein, 
+                 x = as.formula(paste0("~",grep("group",colnames(SNC.type.no_protein),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(SNC.type.no_protein),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(SNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(SNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  
+  .pl %>%
+    export(file = "barplot.svg",
+           selenium = RSelenium::rsDriver(browser = "firefox", port = 4444L))
+  
+  
+  cat(renderTags(.pl)$html)
+  
+  cat("\n### Unique Strongly negatively correlated (SNC) gene types \n\n")
+  cat("\n#### All gene types \n\n")
+  
+  .pl <- plot_ly(SNC.type, 
+                 x = as.formula(paste0("~",grep("group",colnames(SNC.type),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(SNC.type),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(SNC.type),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(SNC.type),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+  cat("\n#### No protein_coding gene type \n\n")
+  
+  .pl <- plot_ly(SNC.type.no_protein, 
+                 x = as.formula(paste0("~",grep("group",colnames(SNC.type.no_protein),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(SNC.type.no_protein),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(SNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(SNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+  
+  cat("\n### Unique  Weakly negatively correlated (WNC) gene types \n\n")
+  cat("\n#### All gene types \n\n")
+  
+  .pl <- plot_ly(WNC.type, 
+                 x = as.formula(paste0("~",grep("group",colnames(WNC.type),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(WNC.type),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(WNC.type),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(WNC.type),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+  cat("\n#### No protein_coding gene type \n\n")
+  .pl <- plot_ly(WNC.type.no_protein, 
+                 x = as.formula(paste0("~",grep("group",colnames(WNC.type.no_protein),value=T))), 
+                 y = as.formula(paste0("~",grep(paste0(i,"_hg19_negative"),colnames(WNC.type.no_protein),value=T))), 
+                 type = 'bar', 
+                 name = paste0(i," hg19 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_negative"),colnames(WNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (-1500bp)")) %>%
+    add_trace(y = as.formula(paste0("~",grep(paste0(i,"_hg38_all"),colnames(WNC.type.no_protein),value=T))), 
+              name = paste0(i," hg38 (+/-1500bp)")) %>%
+    layout(yaxis = list(title = 'Count'),
+           barmode = 'group',
+           margin = list(b = 250),
+           xaxis = list(title = 'Gene group type', tickangle = 90))
+  cat(renderTags(.pl)$html)
+}
+```
+
+```{r, include=F }
+htmltools::tagList(.pl)
+```
+
+```{r,include=F,eval=T}
+ret.all <- NULL
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)[1:2]
+for(f in files){
+  load(f)
+  hg19_correlation <- hg19_correlation %>% unite(col = "ID","probe","ensembl_gene_id")
+  hg38_correlation <- hg38_correlation %>% unite(col = "ID","probe","ensembl_gene_id")
+  ret <- plyr::adply(unique(hg19_correlation$status),.margins = 1,.fun = function(x){
+    both <- length(intersect(hg38_correlation %>% filter(status == x) %>% pull(ID),hg19_correlation  %>% filter(status == x) %>% pull(ID)))
+    hg38_only <- length(setdiff(hg38_correlation %>% filter(status == x) %>% pull(ID),hg19_correlation  %>% filter(status == x)%>% pull(ID)))
+    hg19_only <- length(setdiff(hg19_correlation  %>% filter(status == x)%>% pull(ID),hg38_correlation  %>% filter(status == x)%>% pull(ID)))
+    data.frame(x,both,hg38_only,hg19_only)
+  })
+  ret$tumor <- basename(sapply(f,function(x) {unlist(stringr::str_split(x,pattern = "_"))[1]}))
+  ret.all <- rbind(ret.all,ret)
+  print(ret.all)
+}
+
+ret.all$X1 <- NULL
+
+aux <- melt(ret.all)
+aux <- aux %>% filter(x %in% c("Strongly negatively correlated (SNC)","Weakly negatively correlated (WNC)"))
+colnames(aux) <- c("Status","tumor","presence","value")
+aux$presence <- factor(aux$presence,level = c("hg19_only","hg38_only","both"))
+type <- aux
+```
+
+## Number of Probe-Gene Associations
+
+```{r,fig.height=10,fig.width=15,message=FALSE}
+ggbarplot(type, 
+          x = "tumor", 
+          y = "value", 
+          fill = "presence",
+          facet.by = "Status",
+          nrow = 2,
+          palette = c("#AF0027","#1065AC","#636363"),
+          x.text.angle = 90,
+          ylab = "Number of Probe-Gene Associations",
+          xlab = "Cancer type",
+          legend = "right")
+```
+
+## Strongly negatively correlated (SNC) gene types per annotation strategy
+
+```{r,fig.height=50,fig.width=15,message=FALSE}
+
+SNC.type <- melt(SNC.type)
+SNC.type$tumor <- sapply(SNC.type$variable,function(x) {unlist(stringr::str_split(x,pattern = "_"))[1]})
+SNC.type$variable <- as.character(SNC.type$variable)
+SNC.type$variable[grep("hg38_negative",SNC.type$variable)] <- "hg38 -1500"
+SNC.type$variable[grep("hg19_negative",SNC.type$variable)] <- "Legacy -1500"
+SNC.type$variable[grep("hg38_all",SNC.type$variable)] <- "hg38 +/- 1500"
+SNC.type <- SNC.type[SNC.type$variable %in% c("hg38 -1500", "hg38 +/- 1500","Legacy -1500"),]
+
+colors.pallet <- c('ACC'='#C1A72F',
+                   'BLCA'='#FAD2D9',
+                   'BRCA'='#ED2891',
+                   'CESC'='#F6B667',
+                   'CHOL'='#104A7F',
+                   'COAD'='#9EDDF9',
+                   'DLBC'='#3953A4',
+                   'ESCA'='#007EB5',
+                   'GBM'='#B2509E',
+                   'HNSC'='#97D1A9',
+                   'KICH'='#ED1C24',
+                   'KIRC'='#F8AFB3',
+                   'KIRP'='#EA7075',
+                   'LAML'='#754C29',
+                   'LGG'='#D49DC7',
+                   'LIHC'='#CACCDB',
+                   'LUAD'='#D3C3E0',
+                   'LUSC'='#A084BD',
+                   'MESO'='#542C88',
+                   'OV'='#D97D25',
+                   'PAAD'='#6E7BA2',
+                   'PCPG'='#E8C51D',
+                   'PRAD'='#7E1918',
+                   'READ'='#DAF1FC',
+                   'SARC'='#00A99D',
+                   'SKCM'='#BBD642',
+                   'STAD'='#00AEEF',
+                   'TGCT'='#BE1E2D',
+                   'THCA'='#F9ED32',
+                   'THYM'='#CEAC8F',
+                   'UCEC'='#FBE3C7',
+                   'UCS'='#F89420',
+                   'UVM'='#009444')
+
+SNC.type$variable <- factor(SNC.type$variable,
+                      levels = c("Legacy -1500",
+                                 "hg38 -1500",
+                                 "hg38 +/- 1500")
+)
+
+SNC.type <- SNC.type %>% filter(!is.na(SNC.type$Gene_group_type))
+SNC.type$Gene_group_type <- factor(SNC.type$Gene_group_type,
+                                   levels = unique(SNC.type$Gene_group_type[order(-SNC.type$value)]))
+
+ggline(SNC.type, 
+       x = "variable", 
+       y = "value",
+       color = "tumor",
+       facet.by = "Gene_group_type",
+       legend = "bottom",
+       ncol = 3,
+       scales = "free",
+       palette = colors.pallet,
+       repel = T, 
+       label.rectangle = F,
+       ylab = "Counts",
+       xlab = "",
+       show.line.label =T) + rotate_x_text()
+```
+
+# Code
+
+## Downloading the data
+```{r, code=readLines("code/download.R"), eval=FALSE,message=TRUE,echo = T}
+```
+
+## hg38 analysis
+```{r, code=readLines("code/correlation_hg38.R"), eval=FALSE,message=TRUE,echo = T}
+```
+
+
+## hg19 analysis
+```{r, code=readLines("code/correlation_hg19.R"), eval=FALSE,message=TRUE,echo = T}
+```
+
+
+## Plots and files
+```{r, code=readLines("code/plot_correlation.R"), eval=FALSE,message=TRUE,echo = T}
+```
+
+## Check differences
+```{r, code=readLines("code/check_differences.R"), eval=FALSE,message=TRUE,echo = T}
+```
+
+
+# Session Information
+```{r, echo=FALSE, warning=FALSE,message=FALSE, cols.print=20}
+sessionInfo()
+```
+
