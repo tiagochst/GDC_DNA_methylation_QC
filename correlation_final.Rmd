@@ -635,7 +635,7 @@ cat(renderTags(.pl)$html)
 
 # For each tumor type plot status, SNC and WNC gene types
 files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
-tumors <- unique(basename(dirname(dirname(files))))
+tumors <- gsub("_correlation_final.rda|./","",files)
 for(i in tumors){
   if(!any(grepl(paste0(i,"_hg38_negative"),colnames(correlation.status)))) next
   cat("\n## ",i, " \n\n")
