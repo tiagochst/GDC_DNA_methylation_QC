@@ -692,11 +692,6 @@ for(i in tumors){
            margin = list(b = 250),
            xaxis = list(title = 'Gene group type', tickangle = 90))
   
-  .pl %>%
-    export(file = "barplot.svg",
-           selenium = RSelenium::rsDriver(browser = "chrome", port = 4444L))
-  
-  
   cat(renderTags(.pl)$html)
   
   cat("\n### Unique Strongly negatively correlated (SNC) gene types \n\n")
