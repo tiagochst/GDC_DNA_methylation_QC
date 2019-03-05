@@ -634,7 +634,7 @@ all.type.no.protein <- all.type[all.type$Gene_group_type != "protein_coding",]
 cat(renderTags(.pl)$html)
 
 # For each tumor type plot status, SNC and WNC gene types
-files <- dir(pattern = "correlation_final.csv",recursive = T,full.names = T)
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
 tumors <- unique(basename(dirname(dirname(files))))
 for(i in tumors){
   if(!any(grepl(paste0(i,"_hg38_negative"),colnames(correlation.status)))) next
@@ -694,7 +694,7 @@ for(i in tumors){
   
   .pl %>%
     export(file = "barplot.svg",
-           selenium = RSelenium::rsDriver(browser = "firefox", port = 4444L))
+           selenium = RSelenium::rsDriver(browser = "chrome", port = 4444L))
   
   
   cat(renderTags(.pl)$html)
@@ -915,6 +915,18 @@ keeps samples with both DNA methylation and gene expression.
 ```{r, code=readLines("code/check_differences.R"), eval=FALSE,message=TRUE,echo = T}
 ```
 
+# Samples list
+```{r, message=TRUE,echo = FALSE}
+load("samples.rda")
+DT::datatable(all.samples.hg38,   
+              filter = 'top',   
+              class = 'cell-border stripe',  
+              rownames = FALSE,
+              extensions = 'Buttons', 
+              options = list(scrollX = TRUE, 
+                             dom = 'Bfrtip',
+                             buttons = c('copy', 'csv', 'excel', 'pdf', 'print',I('colvis'))))
+```
 
 # Session Information
 ```{r, echo=FALSE, warning=FALSE,message=FALSE, cols.print=20}
