@@ -591,7 +591,7 @@ This section will evaluate the transcript type for all associations and for each
 and fthe most significant anti-correlated  associations (SNC and WNC) the transcript type for all associated genes.
 
 ```{r ,echo=FALSE, message=FALSE, warning=FALSE,results="asis"}
-files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)[1:2]
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
 
 SNC.type.no_protein <- SNC.type[SNC.type$Gene_group_type != "protein_coding",]
 WNC.type.no_protein <- WNC.type[WNC.type$Gene_group_type != "protein_coding",]
@@ -889,16 +889,21 @@ ggline(SNC.type,
 
 # Code
 
-## Downloading the data
+## Downloading TCGA data
+
+Using the function `getTCGA` from ELMER that uses TCGAbiolinks to download GDC data, we will download all RNA-seq 
+and DNA methylation into a Data folder. This data will be used later to create a `MultiAssayExperiment` object that will only 
+keeps samples with both DNA methylation and gene expression.
+
 ```{r, code=readLines("code/download.R"), eval=FALSE,message=TRUE,echo = T}
 ```
 
-## hg38 analysis
+## Harmonized data (hg38) correlation analysis
 ```{r, code=readLines("code/correlation_hg38.R"), eval=FALSE,message=TRUE,echo = T}
 ```
 
 
-## hg19 analysis
+## Legacy data (hg19) correlation analysis
 ```{r, code=readLines("code/correlation_hg19.R"), eval=FALSE,message=TRUE,echo = T}
 ```
 
