@@ -22,7 +22,7 @@ The main purpose is to compare the differences in the DNA methylation metadata i
 
 A pair of probe and genes are consider:
 
-- Insignificant if $FDR > 0.05$
+- Insignificant if FDR > 0.05
 - Strongly negatively correlated (SNC) when the rho value was less than $-0.5$ ($FDR < 0.05$);
 - Weakly negatively correlated (WNC) when the rho value was between $-0.5$ and $-0.25$ ($FDR < 0.05$);
 - No negative correlation (NNC) when the rho value was greater than $-0.25$ ($FDR < 0.05$);
