@@ -47,7 +47,7 @@ for(tumor in tumors){
                                        },.id = NULL,.expand = T,.progress = T,.parallel = T)
     save(associated.genes_id, file = "associated.genes_id_not_merged_max_dist_1500.rda")
 
-    load("Human_genes__GRCh38_p12__tss.rda")
+    tss <- ELMER:::getTSS(genome = "hg38")
     idx <- !associated.genes_id$gene %in% tss$external_gene_name
     associated.genes_id$gene[idx] <- as.character(HGNChelper::checkGeneSymbols(associated.genes_id$gene[idx])$Suggested.Symbol)
 
