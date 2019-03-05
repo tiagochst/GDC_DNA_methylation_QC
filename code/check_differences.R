@@ -1,8 +1,11 @@
 library(readr)
 library(dplyr)
 
-load("/mnt/home/tiagochst/paper_elmer/GDAN/associated.genes_id_hg19.rda")
-load("/mnt/home/tiagochst/paper_elmer/GDAN/associated.genes_id.rda")
+root <- "/mnt/home/tiagochst/paper_elmer/GDAN/"
+setwd(root)
+
+load(file.path(root,"associated.genes_id_hg19.rda"))
+load(file.path(root,"associated.genes_id.rda"))
 colnames(associated.genes_id.hg19)[2] <- "probe"
 associated.genes_id$distance <- NULL
 associated.genes_id <- unique(associated.genes_id)
@@ -10,6 +13,7 @@ associated.genes_id <- unique(associated.genes_id)
 files <- dir(pattern = "correlation.csv",recursive = T,full.names = T)
 tumors <- basename(dirname(dirname(files)))
 snc.in.hg38.not.in.hg19 <- NULL
+
 for(tumor in tumors){
   print(tumor)
   f <- sort(grep(tumor, files,value = T))
@@ -19,8 +23,8 @@ for(tumor in tumors){
   colnames(hg38_correlation)[grep("ENSG",hg38_correlation[1,])] <- "ensembl_gene_id"
   hg19_correlation <- left_join(as_tibble(hg19_correlation),unique(as_tibble(associated.genes_id.hg19)))
   hg38_correlation <- left_join(as_tibble(hg38_correlation),unique(as_tibble(associated.genes_id)))
-  save(hg19_correlation,hg38_correlation, file = paste0(tumor,"_correlation_final.rda"))
-  
+  save(hg19_correlation, hg38_correlation, file = paste0(tumor,"_correlation_final.rda"))
+
   if(any(hg19_correlation$status == "Strongly negatively correlated (SNC)")){
     y <- hg19_correlation[hg19_correlation$status == "Strongly negatively correlated (SNC)",]
     z <- hg38_correlation[hg38_correlation$status == "Strongly negatively correlated (SNC)",]
@@ -29,12 +33,11 @@ for(tumor in tumors){
     snc.in.hg38.not.in.hg19 <- rbind(snc.in.hg38.not.in.hg19,z)
   }
 }
-readr::write_csv(unique(as.data.frame(snc.in.hg38.not.in.hg19)),path = "snc_in_hg38_not_in_hg19.csv")
+readr::write_csv(unique(as.data.frame(snc.in.hg38.not.in.hg19)), path = "snc_in_hg38_not_in_hg19.csv")
 
 # Evaluating  only negative
-library(readr)
-load("/mnt/home/tiagochst/paper_elmer/GDAN/associated.genes_id_hg19.rda")
-load("/mnt/home/tiagochst/paper_elmer/GDAN/associated.genes_id.rda")
+load(file.path(root, "associated.genes_id_hg19.rda"))
+load(file.path(root, "associated.genes_id.rda"))
 colnames(associated.genes_id.hg19)[2] <- "probe"
 associated.genes_id <- associated.genes_id[as.numeric(as.character(associated.genes_id$distance)) < 0,]
 associated.genes_id$distance <- NULL
@@ -56,7 +59,7 @@ for(tumor in tumors){
   hg19_correlation <- left_join(as_tibble(hg19_correlation),unique(as_tibble(associated.genes_id.hg19)))
   hg38_correlation <- left_join(as_tibble(hg38_correlation),unique(as_tibble(associated.genes_id)))
   save(hg19_correlation,hg38_correlation, file = paste0(tumor,"_correlation_only_negative.rda"))
-  
+
   if(any(hg19_correlation$status == "Strongly negatively correlated (SNC)")){
     y <- hg19_correlation[hg19_correlation$status ==  "Strongly negatively correlated (SNC)",]
     z <- hg38_correlation[hg38_correlation$status ==  "Strongly negatively correlated (SNC)",]
@@ -76,6 +79,7 @@ for(tumor in tumors){
     wnc.in.hg38.not.in.hg19.all <- rbind(wnc.in.hg38.not.in.hg19.all,aux)
   }
 }
+
 readr::write_csv(unique(as.data.frame(snc.in.hg38.not.in.hg19.all)),
                  path = "snc_in_hg38_negative_1500bp_not_in_hg19_negative_1500bp_all_info.csv")
 readr::write_csv(unique(as.data.frame(wnc.in.hg38.not.in.hg19.all)),

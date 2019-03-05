@@ -22,10 +22,10 @@ The main purpose is to compare the differences in the DNA methylation metadata i
 
 A pair of probe and genes are consider:
 
-- Insignificant if FDR > 0.05 
-- Strongly negatively correlated (SNC) when the rho value was less than -0.5 (FDR < 0.05);
-- Weakly negatively correlated (WNC) when the rho value was between -0.5 and -0.25 (FDR < 0.05);
-- No negative correlation (NNC) when the rho value was greater than -0.25 (FDR < 0.05);
+- Insignificant if $FDR > 0.05$
+- Strongly negatively correlated (SNC) when the rho value was less than $-0.5$ ($FDR < 0.05$);
+- Weakly negatively correlated (WNC) when the rho value was between $-0.5$ and $-0.25$ ($FDR < 0.05$);
+- No negative correlation (NNC) when the rho value was greater than $-0.25$ ($FDR < 0.05$);
 
 As the purpose is to compare DNA methylation annotation, the correlation of both analyses (hg19 and hg38) used the same gene expression data (GDC harmonized - FPKM-UQ).
 
@@ -156,7 +156,7 @@ library(plotly)
 # correlation values (spearman pvalue, rho and status)
 # we read it and summarize
 correlation.status <- NULL
-files <- dir(pattern = "correlation_final.rda",recursive = T,full.names = T)
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
 for(f in files){
   load(f)
   # to keep only the same distance signal
@@ -774,7 +774,7 @@ htmltools::tagList(.pl)
 
 ```{r,include=F,eval=T}
 ret.all <- NULL
-files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)[1:2]
+files <- dir(pattern = "correlation_final.rda", recursive = T, full.names = T)
 for(f in files){
   load(f)
   hg19_correlation <- hg19_correlation %>% unite(col = "ID","probe","ensembl_gene_id")
@@ -787,7 +787,6 @@ for(f in files){
   })
   ret$tumor <- basename(sapply(f,function(x) {unlist(stringr::str_split(x,pattern = "_"))[1]}))
   ret.all <- rbind(ret.all,ret)
-  print(ret.all)
 }
 
 ret.all$X1 <- NULL
