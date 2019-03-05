@@ -918,7 +918,7 @@ keeps samples with both DNA methylation and gene expression.
 # Samples list
 ```{r, message=TRUE,echo = FALSE}
 load("samples.rda")
-DT::datatable(all.samples.hg38,   
+DT::datatable(as.data.fram(all.samples.hg38),   
               filter = 'top',   
               class = 'cell-border stripe',  
               rownames = FALSE,
