@@ -68,7 +68,7 @@ for(tumor in tumors){
   dir.create(paste0(tumor,"/hg19/"),showWarnings = FALSE,recursive = TRUE)
   met <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_meth_hg38_no_filter.rda")))
   met <- met[unique(associated.genes_id.hg19$ID),]
-  rna <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_RNA_hg38_no_filter.rda")))
+  rna <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_RNA_hg38.rda")))
 
   # This will keep samples with the both DNA methylation and gene expression
   # Take the log2(exp + 1)

@@ -27,7 +27,7 @@ for(tumor in tumors){
   if(file.exists(paste0(paste0(tumor,"/hg38/"),tumor,"_hg38_correlation.csv"))) next
   dir.create(paste0(tumor,"/hg38/"),showWarnings = FALSE,recursive = T)
   met <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_meth_hg38_no_filter.rda")))
-  rna <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_RNA_hg38_no_filter.rda")))
+  rna <- get(load(paste0(root,"/Data/",tumor,"/",tumor,"_RNA_hg38.rda")))
   gene.metadata <- values(rna)[,1:2]
   met <- met[rowRanges(met)$Gene_Symbol != ".",]
 
